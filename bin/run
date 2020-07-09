@@ -1,0 +1,3 @@
+#!/bin/bash
+
+docker run -i -v "$(pwd)/app/":/go/src/translatorbot/:rw -v "$HOME/endbot-1563845240703-213f9075b8c0.json":/endbot.json:ro translatorbot:1.0

@@ -1,0 +1,33 @@
+version: '3'
+
+services:
+  bot:
+    depends_on:
+      - database
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    environment:
+      - MONGO_HOST=database
+      - MONGO_PORT=27017
+      - MONGO_DATABASE=$MONGO_DATABASE
+      - MONGO_USERNAME=$MONGO_USERNAME
+      - MONGO_PASSWORD=$MONGO_PASSWORD
+      - DISCORD_BOT_TOKEN=$DISCORD_BOT_TOKEN
+      - GOOGLE_API_JSON_TOKEN_PATH=$GOOGLE_API_JSON_TOKEN_PATH
+      - GOOGLE_API_PROJECT_ID=$GOOGLE_API_PROJECT_ID
+    volumes:
+      - ./app/:/go/src/translatorbot/:rw
+      - $GOOGLE_API_JSON_TOKEN_PATH:/endbot.json:ro
+
+  database:
+    image: 'mongo'
+    container_name: 'mongo-database'
+    environment:
+      - MONGO_INITDB_DATABASE=$MONGO_DATABASE
+      - MONGO_INITDB_ROOT_USERNAME=$MONGO_USERNAME
+      - MONGO_INITDB_ROOT_PASSWORD=$MONGO_PASSWORD
+    volumes:
+      - ./db:/data/db
+    ports:
+      - '27017-27019:27017-27019'

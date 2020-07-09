@@ -1,0 +1,3 @@
+#!/bin/bash
+
+docker build -t translatorbot:1.0 .

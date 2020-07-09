@@ -1,0 +1,13 @@
+#!/bin/bash
+
+echo "entry-point..."
+dep init
+
+echo "entry-point.ensure..."
+dep ensure
+
+echo "entry-point.build..."
+go build -o /go/bin/app .
+
+echo "entry-point.run..."
+/go/bin/app
