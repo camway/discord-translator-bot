@@ -1,67 +1,34 @@
 package main
 
 import (
-  "github.com/bwmarrin/discordgo"
   "fmt"
   "strings"
   "sync"
+
+  "translatorbot/data"
+  "translatorbot/lang"
+
+  "github.com/bwmarrin/discordgo"
 )
 
-/*
-!list languages
-!list groups
-!create GROUPNAME
-!join GROUPNAME LANGUAGECODE
-!leave GROUPNAME
-!delete GROUPNAME
-*/
-
-// This function will be called (due to AddHandler above) every time a new
-// message is created on any channel that the authenticated bot has access to.
-func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
-  fmt.Println("Message received: " + m.Content)
-
-	// Ignore all messages created by the bot itself
-	// This isn't required in this specific example but it's a good practice.
-	if m.Author.ID == s.State.User.ID {
-    fmt.Println("Early out")
-		return
-	}
-
-  pingMessageHandler(s, m)
-
-  commandListMessageHandler(s, m)
-  languageListMessageHandler(s, m)
-
-  listGroupsMessageHandler(s, m)
-
-  createGroupMessageHandler(s, m)
-  joinGroupMessageHandler(s, m)
-  leaveGroupMessageHandler(s, m)
-  deleteGroupMessageHandler(s, m)
-
-  translateMessageHandler(s, m)
-}
-
-func translateMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
+func translateMessageHandler(bot *Bot, s *discordgo.Session, m *discordgo.MessageCreate) {
   // Don't try to translate commands
   if strings.HasPrefix(m.Content, "!") {
     return
   }
-  var channel = dataManager.GetChannelByID(m.ChannelID)
+  var channel = bot.DataManager.GetChannelByID(m.ChannelID)
   if channel == nil {
     return
   }
   // groups, languages
-  groups, languages := dataManager.ChannelGroups(channel, m.GuildID)
+  groups, languages := bot.DataManager.ChannelGroups(channel, m.GuildID)
   // Lang to Translation
   var translations = make(map[string]string)
   var wg sync.WaitGroup
   for _, lang := range languages {
     wg.Add(1)
     go func(l string) {
-      fmt.Println(fmt.Sprintf("Getting translation for %s from %s to %s", m.Content, channel.Language, l))
-      var translation, err = translateMessage(m.Content, channel.Language, l)
+      var translation, err = bot.Translator.TranslateMessage(m.Content, channel.Language, l)
       if err == nil {
         translations[l] = translation
       } else {
@@ -73,7 +40,7 @@ func translateMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
   }
   wg.Wait()
 
-  var channels = make(map[string]Channel)
+  var channels = make(map[string]data.Channel)
   for _, g := range groups {
     for _, c := range g.Channels {
       channels[c.ID] = c
@@ -103,7 +70,7 @@ func translateMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
   }
 }
 
-func pingMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
+func pingMessageHandler(bot *Bot, s *discordgo.Session, m *discordgo.MessageCreate) {
   // If the message is "ping" reply with "Pong!"
 	if m.Content == "ping" {
     fmt.Println("sending Pong!")
@@ -126,28 +93,28 @@ const commandList = `!commands
 !delete GROUPNAME`
 
 // !commands
-func commandListMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
+func commandListMessageHandler(bot *Bot, s *discordgo.Session, m *discordgo.MessageCreate) {
   if m.Content != "!commands" { return }
 
   s.ChannelMessageSend(m.ChannelID, commandList)
 }
 
 // !list languages
-func languageListMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
+func languageListMessageHandler(bot *Bot, s *discordgo.Session, m *discordgo.MessageCreate) {
   if m.Content != "!list languages" { return }
 
-  s.ChannelMessageSend(m.ChannelID, LanguageList())
+  s.ChannelMessageSend(m.ChannelID, lang.LanguageList())
 }
 
 // !list groups
-func listGroupsMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
+func listGroupsMessageHandler(bot *Bot, s *discordgo.Session, m *discordgo.MessageCreate) {
   if m.Content != "!list groups" { return }
 
-  s.ChannelMessageSend(m.ChannelID, dataManager.ListGroups())
+  s.ChannelMessageSend(m.ChannelID, bot.DataManager.ListGroups())
 }
 
 // !create GROUPNAME
-func createGroupMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
+func createGroupMessageHandler(bot *Bot, s *discordgo.Session, m *discordgo.MessageCreate) {
   if !strings.HasPrefix(m.Content, "!create ") { return }
 
   var parts = strings.SplitN(m.Content, " ", 2)
@@ -156,7 +123,7 @@ func createGroupMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate)
     return
   }
 
-  var err = dataManager.createGroup(strings.TrimSpace(parts[1]), m.GuildID)
+  var err = bot.DataManager.CreateGroup(strings.TrimSpace(parts[1]), m.GuildID)
   if err == nil {
   s.ChannelMessageSend(m.ChannelID, "Group created")
   } else {
@@ -166,7 +133,7 @@ func createGroupMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate)
 }
 
 // !join GROUPNAME LANGUAGECODE
-func joinGroupMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
+func joinGroupMessageHandler(bot *Bot, s *discordgo.Session, m *discordgo.MessageCreate) {
   if !strings.HasPrefix(m.Content, "!join ") { return }
   // var contentLength = len(m.Content)
   // var prefixLength = len("!join ")
@@ -190,7 +157,7 @@ func joinGroupMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
     return
   }
 
-  var lang = GetLanguage(code)
+  var lang = lang.GetLanguage(code)
   if lang == nil {
     s.ChannelMessageSend(m.ChannelID, "Can't find the language code. Check: !list languages")
     return
@@ -203,9 +170,9 @@ func joinGroupMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
     return
   }
 
-  err = dataManager.addChannelToGroup(
+  err = bot.DataManager.AddChannelToGroup(
     group,
-    Channel{
+    data.Channel{
       ID: m.ChannelID,
       Name: channel.Name,
       Language: code,
@@ -220,7 +187,7 @@ func joinGroupMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 }
 
 // !leave GROUPNAME
-func leaveGroupMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
+func leaveGroupMessageHandler(bot *Bot, s *discordgo.Session, m *discordgo.MessageCreate) {
   if !strings.HasPrefix(m.Content, "!leave ") { return }
   // var contentLength = len(m.Content)
   var prefixLength = len("!leave ")
@@ -231,7 +198,7 @@ func leaveGroupMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) 
     return
   }
 
-  err := dataManager.removeChannelFromGroup(group, m.ChannelID)
+  err := bot.DataManager.RemoveChannelFromGroup(group, m.ChannelID)
   if err == nil {
     s.ChannelMessageSend(m.ChannelID, "Channel removed")
   } else {
@@ -240,7 +207,7 @@ func leaveGroupMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) 
 }
 
 // !delete GROUPNAME
-func deleteGroupMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
+func deleteGroupMessageHandler(bot *Bot, s *discordgo.Session, m *discordgo.MessageCreate) {
   if !strings.HasPrefix(m.Content, "!delete ") { return }
   var prefixLength = len("!delete ")
 
@@ -250,12 +217,12 @@ func deleteGroupMessageHandler(s *discordgo.Session, m *discordgo.MessageCreate)
     return
   }
 
-  g := dataManager.GetGroupByName(group)
+  g := bot.DataManager.GetGroupByName(group)
   if g == nil {
     s.ChannelMessageSend(m.ChannelID, "Couldn't find the group")
   }
 
-  err := dataManager.deleteGroup(g.ID)
+  err := bot.DataManager.DeleteGroup(g.ID)
   if err == nil {
     s.ChannelMessageSend(m.ChannelID, "Group deleted")
   } else {

@@ -1,4 +1,4 @@
-package main
+package data
 
 import (
   "go.mongodb.org/mongo-driver/mongo"
@@ -7,55 +7,63 @@ import (
   "go.mongodb.org/mongo-driver/bson/primitive"
   "context"
   "sync"
+  "time"
   "errors"
   "strconv"
+  "translatorbot/db"
 )
-
-var dataManager Manager
 
 const groupCollection = "groups"
 
-type Group struct {
-  ID primitive.ObjectID `bson:"_id"`
-  Name string `bson:"name"`
-  ServerID string `bson:"serverId"`
-  Channels []Channel `bson:"channels"`
-}
+func NewManager(config db.Config) (dataManager *Manager, err error) {
+  dataManager = &Manager{config: config}
 
-func (g *Group) ToString() string {
-  var output = g.Name + "\n"
-  for index := range g.Channels {
-    output = output + "  " + g.Channels[index].Name + "\n"
-  }
-  return output
-}
-
-type Channel struct {
-  ID string `bson:"id"`
-  Name string `bson:"name"`
-  Language string `bson:"language"`
-}
-
-func (c *Channel) ToString() string {
-  return c.Name + " (" + c.Language + ")"
-}
-
-func NewManager(client *mongo.Client, db string) {
-  dataManager = Manager{
-    mclient: client,
-    database: db,
-  }
-  err := dataManager.Load()
+  err = dataManager.connect()
   if err != nil {
-    panic(err)
+    return
   }
+
+  err = dataManager.Load()
+  if err != nil {
+    return
+  }
+  return
 }
 
 type Manager struct {
+  config db.Config
   mclient *mongo.Client
-  database string
   Groups []Group
   mutex sync.Mutex
+}
+
+func (m *Manager) connect() error {
+  client, err := mongo.NewClient(options.Client().ApplyURI(m.config.ConnectionString()))
+  if err != nil {
+    return err
+  }
+  ctx, _ := context.WithTimeout(context.TODO(), 10*time.Second)
+  err = client.Connect(ctx)
+  if err != nil {
+    return err
+  }
+
+  m.mclient = client
+
+  return nil
+}
+
+func (m *Manager) Close() {
+  m.mclient.Disconnect(context.TODO())
+}
+
+func (m *Manager) Load() error {
+  groups, err := m.GetGroups()
+  if err != nil {
+    return err
+  }
+  m.Groups = groups
+  return nil
 }
 
 func (m *Manager) GroupsInServer(id string) (groups []Group) {
@@ -63,23 +71,6 @@ func (m *Manager) GroupsInServer(id string) (groups []Group) {
     if g.ServerID == id {
       groups = append(groups, g)
     }
-  }
-  return
-}
-
-func getLanguagesInGroups(groups []Group, excludeLanguage string) (languageList []string) {
-  var languages map[string]bool = make(map[string]bool)
-
-  for _, g := range groups {
-    for _, c := range g.Channels {
-      if c.Language != excludeLanguage {
-        languages[c.Language] = true
-      }
-    }
-  }
-
-  for k := range languages {
-    languageList = append(languageList, k)
   }
   return
 }
@@ -111,17 +102,8 @@ func (m *Manager) ChannelGroups(channel *Channel, serverID string) ([]Group, []s
   return groups, languages
 }
 
-func (m *Manager) Load() error {
-  groups, err := m.GetGroups()
-  if err != nil {
-    return err
-  }
-  m.Groups = groups
-  return nil
-}
-
 func (m *Manager) GetGroups() ([]Group, error) {
-  col := m.mclient.Database(m.database).Collection(groupCollection)
+  col := m.mclient.Database(m.config.Database).Collection(groupCollection)
   // Pass these options to the Find method
   findOptions := options.Find()
   findOptions.SetLimit(100)
@@ -176,14 +158,14 @@ func (m *Manager) ListGroups() (out string) {
   return
 }
 
-func (m *Manager) createGroup(name string, serverID string) error {
+func (m *Manager) CreateGroup(name string, serverID string) error {
   var group = Group{
     ID: primitive.NewObjectID(),
     Name: name,
     ServerID: serverID,
     Channels: []Channel{},
   }
-  col := m.mclient.Database(m.database).Collection(groupCollection)
+  col := m.mclient.Database(m.config.Database).Collection(groupCollection)
   _, err := col.InsertOne(context.TODO(), group)
   if err != nil {
     return err
@@ -193,8 +175,8 @@ func (m *Manager) createGroup(name string, serverID string) error {
   return nil
 }
 
-func (m *Manager) saveGroup(group *Group) error {
-  col := m.mclient.Database(m.database).Collection(groupCollection)
+func (m *Manager) SaveGroup(group *Group) error {
+  col := m.mclient.Database(m.config.Database).Collection(groupCollection)
   _, err := col.UpdateOne(
     context.TODO(),
     bson.M{"_id": group.ID},
@@ -207,8 +189,8 @@ func (m *Manager) saveGroup(group *Group) error {
   return nil
 }
 
-func (m *Manager) deleteGroup(groupID primitive.ObjectID) error {
-  col := m.mclient.Database(m.database).Collection(groupCollection)
+func (m *Manager) DeleteGroup(groupID primitive.ObjectID) error {
+  col := m.mclient.Database(m.config.Database).Collection(groupCollection)
   _, err := col.DeleteOne(context.TODO(), bson.M{"_id": groupID})
   if err != nil {
     return err
@@ -225,7 +207,7 @@ func (m *Manager) deleteGroup(groupID primitive.ObjectID) error {
   return nil
 }
 
-func (m *Manager) addChannelToGroup(groupName string, channel Channel) (err error) {
+func (m *Manager) AddChannelToGroup(groupName string, channel Channel) (err error) {
   group := m.GetGroupByName(groupName)
   if group == nil {
     return errors.New("Couldn't find group")
@@ -233,7 +215,7 @@ func (m *Manager) addChannelToGroup(groupName string, channel Channel) (err erro
 
   group.Channels = append(group.Channels, channel)
 
-  err = m.saveGroup(group)
+  err = m.SaveGroup(group)
   if err != nil {
     return
   }
@@ -241,7 +223,7 @@ func (m *Manager) addChannelToGroup(groupName string, channel Channel) (err erro
   return
 }
 
-func (m *Manager) removeChannelFromGroup(groupName string, channelID string) (err error) {
+func (m *Manager) RemoveChannelFromGroup(groupName string, channelID string) (err error) {
   group := m.GetGroupByName(groupName)
   if group == nil {
     return errors.New("Couldn't find group")
@@ -260,7 +242,7 @@ func (m *Manager) removeChannelFromGroup(groupName string, channelID string) (er
 
   group.Channels = append(group.Channels[:foundAt], group.Channels[foundAt+1:]...)
 
-  err = m.saveGroup(group)
+  err = m.SaveGroup(group)
   if err != nil {
     return
   }

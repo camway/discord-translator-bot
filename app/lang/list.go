@@ -1,16 +1,8 @@
-package main
+package lang
 
 import (
   "strings"
-  "fmt"
 )
-
-type Language struct {
-  Name string
-  Code string
-}
-
-var languageList string
 
 func LanguageList() (list string) {
   for _, language := range languageCodes {
@@ -20,8 +12,6 @@ func LanguageList() (list string) {
 }
 
 func GetLanguage(str string) *Language {
-  fmt.Println("GetLanguage")
-  fmt.Println(str)
   for _, lang := range languageCodes {
     if str == lang.Name || str == lang.Code || strings.HasPrefix(str, lang.Name) {
       return &lang
