@@ -260,12 +260,13 @@
   revision = "ddb9806d33aed8dbaac1cd6f1cba58952e87f933"
 
 [[projects]]
-  digest = "1:fa940333c48808b0d86ef21f412ffcfd0e5084a82f13905c028a404803b1908f"
+  digest = "1:39ac9a1c6cc1d0dc4313d8e1feb7d6bdfdd62faf812e44a6b789e2f346e1c30b"
   name = "golang.org/x/text"
   packages = [
     "collate",
     "collate/build",
     "internal/colltab",
+    "internal/format",
     "internal/gen",
     "internal/language",
     "internal/language/compact",
@@ -273,6 +274,7 @@
     "internal/triegen",
     "internal/ucd",
     "language",
+    "language/display",
     "secure/bidirule",
     "transform",
     "unicode/bidi",
@@ -441,6 +443,8 @@
     "go.mongodb.org/mongo-driver/bson/primitive",
     "go.mongodb.org/mongo-driver/mongo",
     "go.mongodb.org/mongo-driver/mongo/options",
+    "golang.org/x/text/language",
+    "golang.org/x/text/language/display",
     "google.golang.org/api/option",
     "google.golang.org/genproto/googleapis/cloud/translate/v3",
   ]

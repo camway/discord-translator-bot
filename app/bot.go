@@ -1,6 +1,8 @@
 package main
 
 import (
+  "fmt"
+
   "github.com/bwmarrin/discordgo"
   "translatorbot/data"
   "translatorbot/lang"
@@ -54,23 +56,20 @@ func messageCreate(
   s *discordgo.Session,
   m *discordgo.MessageCreate,
 ) {
-	// Ignore all messages created by the bot itself
-	// This isn't required in this specific example but it's a good practice.
+  fmt.Println(fmt.Sprintf("Received: `%s`\n", m.Content))
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
 
-  pingMessageHandler(bot, s, m)
-
-  commandListMessageHandler(bot, s, m)
-  languageListMessageHandler(bot, s, m)
-
-  listGroupsMessageHandler(bot, s, m)
-
-  createGroupMessageHandler(bot, s, m)
-  joinGroupMessageHandler(bot, s, m)
-  leaveGroupMessageHandler(bot, s, m)
-  deleteGroupMessageHandler(bot, s, m)
-
-  translateMessageHandler(bot, s, m)
+  if handled := commandListMessageHandler(bot, s, m); handled {
+  } else if handled := languageListMessageHandler(bot, s, m); handled {
+  } else if handled := listGroupsMessageHandler(bot, s, m); handled {
+  } else if handled := createGroupMessageHandler(bot, s, m); handled {
+  } else if handled := joinGroupMessageHandler(bot, s, m); handled {
+  } else if handled := leaveGroupMessageHandler(bot, s, m); handled {
+  } else if handled := deleteGroupMessageHandler(bot, s, m); handled {
+  } else if handled := translateMessageHandler(bot, s, m); handled {
+  } else {
+    fmt.Printf("Unhandled...\n")
+  }
 }

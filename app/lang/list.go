@@ -6,7 +6,7 @@ import (
 
 func LanguageList() (list string) {
   for _, language := range languageCodes {
-    list = list + language.Name + ": " + language.Code + "\n"
+    list = list + language.ToString() + "\n"
   }
   return
 }
@@ -28,14 +28,14 @@ var languageCodes []Language = []Language{
   {"Bulgarian","bg"},
   {"Catalan","ca"},
   {"Cherokee","chr"},
-  {"Chinese (PRC)","zh-CN"},
-  {"Chinese (Taiwan)","zh-TW"},
+  {"Chinese-PRC","zh-CN"},
+  {"Chinese-Taiwan","zh-TW"},
   {"Croatian","hr"},
   {"Czech","cs"},
   {"Danish","da"},
   {"Dutch","nl"},
-  {"English (US)","en"},
-  {"English (UK)","en-GB"},
+  {"English-US","en"},
+  {"English-UK","en-GB"},
   {"Estonian","et"},
   {"Filipino","fil"},
   {"Finnish","fi"},
@@ -59,8 +59,8 @@ var languageCodes []Language = []Language{
   {"Marathi","mr"},
   {"Norwegian","no"},
   {"Polish","pl"},
-  {"Portuguese (Brazil)","pt-BR"},
-  {"Portuguese (Portugal)","pt-PT"},
+  {"Portuguese-Brazil","pt-BR"},
+  {"Portuguese-Portugal","pt-PT"},
   {"Romanian","ro"},
   {"Russian","ru"},
   {"Serbian","sr"},
